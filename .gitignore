@@ -1,0 +1,16 @@
+# Local-only Python packages (this machine blocks virtualenv launchers)
+backend/.deps/
+backend/data/*
+!backend/data/.gitkeep
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+*.db
+
+node_modules/
+frontend/dist/
+
+.env
+.env.local
+.vercel/
+.claude/

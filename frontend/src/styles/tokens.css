@@ -1,0 +1,62 @@
+/*
+ * Design tokens from design-system/wind-forecast-accuracy/MASTER.md
+ * (UI UX Pro Max: "Data-Dense Dashboard", blue data + amber highlights,
+ * Fira Code / Fira Sans, density 8 -> 8-32px spacing scale).
+ * Light theme only.
+ */
+:root {
+  color-scheme: light;
+
+  --color-primary: #1e40af;
+  --color-on-primary: #ffffff;
+  --color-secondary: #3b82f6;
+  --color-accent: #d97706;
+  --color-accent-text: #b45309; /* 4.5:1+ on white, for text in accent */
+  --color-background: #f8fafc;
+  --color-foreground: #0f1f4d;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f1f4d;
+  --color-muted: #e9eef6;
+  --color-muted-foreground: #475569;
+  --color-border: #dbe3f0;
+  --color-destructive: #dc2626;
+  --color-warning-bg: #fff7e6;
+  --color-warning-border: #f2c879;
+  --color-warning-text: #7c4a03;
+  --color-success: #15803d;
+  --color-ring: #1e40af;
+
+  --chart-actual: #1e40af;
+  --chart-forecast: #c2410c;
+  --chart-band: #f59e0b;
+  --chart-grid: #e2e8f0;
+  --chart-axis: #64748b;
+
+  --font-sans: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --shadow-card: 0 1px 2px rgb(15 31 77 / 0.06), 0 1px 3px rgb(15 31 77 / 0.04);
+
+  --z-sticky: 20;
+  --z-toast: 100;
+
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
