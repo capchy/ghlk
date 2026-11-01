@@ -1,2 +1,12 @@
-# Python dependencies for the Vercel function in api/ (the backend's own list).
--r backend/requirements.txt
+# Python dependencies for the Vercel function in api/.
+# Keep in sync with backend/requirements.txt (Vercel cannot follow -r includes).
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+httpx==0.28.1
+SQLAlchemy==2.0.36
+pandas==2.2.3
+numpy==2.2.1
+tzdata==2024.2
+psycopg[binary]==3.2.3

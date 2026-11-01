@@ -80,6 +80,23 @@ Optional: `DECISION_CUTOFF_TIMEZONE` (default `Europe/London`), `LOG_LEVEL` (def
 3. Open `https://<project>.vercel.app` and click **Fetch January 2026 from Elexon**. This takes
    about 15–30 seconds; it took 13 seconds locally against Postgres. The data then stays in Neon.
 
+### Two Vercel gotchas (already handled in this repo)
+
+- **`"framework": null` in `vercel.json` is required.** Without it, Vercel sees Python and treats the
+  project as a "Python backend app". The npm `installCommand` then replaces the Python install
+  (`No module named 'fastapi'`) and every route, including `/`, goes to the function.
+- **The root `requirements.txt` lists packages explicitly.** Vercel's parser cannot follow
+  `-r backend/requirements.txt`, so keep both lists in sync.
+
+### Deploying from the terminal
+
+```bash
+npx vercel login
+npx vercel deploy --prod --yes
+```
+
+Run these from the repository root. `npx vercel integration add neon` adds the database from the CLI.
+
 ### Notes and limits
 
 - **Cold starts:** the first request after a quiet period takes a few seconds while the function
@@ -101,7 +118,7 @@ Optional: `DECISION_CUTOFF_TIMEZONE` (default `Europe/London`), `LOG_LEVEL` (def
   January 2026 fetch took 12.9 seconds with metrics matching SQLite.
 - The backend works even when the platform skips ASGI startup events (it builds its services on
   first use), and it opens HTTP clients per request so nothing outlives an event loop.
-- An actual Vercel deployment has not been run from here, because it needs your accounts.
+- Deployed to https://wind-gamma-seven.vercel.app: `/health`, the dashboard and the API respond. A live January 2026 fetch into Neon took 7.3 seconds, with metrics identical to the local run (744/744 hours, MAE 2,039 MW).
 
 ## AI tools
 
