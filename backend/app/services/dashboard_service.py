@@ -13,12 +13,14 @@ from app.core.timeutils import AnalysisWindow, decision_cutoff, utc_now
 from app.services.accuracy_service import (
     AccuracyService,
     AnalysisResult,
+    DailyEnergyRatioRange,
     ErrorRange,
     LevelErrorRanges,
     Metrics,
     PeriodMetrics,
     bucket_metrics,
     compute_metrics,
+    daily_energy_ratio_range,
     error_range,
     level_error_ranges,
 )
@@ -38,6 +40,7 @@ class Dashboard:
     # "latest": cutoff still ahead (or unknown), so the newest forecast is what a buyer would use.
     forecast_basis: Literal["decision_cutoff", "latest", "as_of"] = "latest"
     decision_at: datetime | None = None
+    daily_energy_range: DailyEnergyRatioRange | None = None
 
 
 class DashboardService:
@@ -98,4 +101,10 @@ class DashboardService:
             warnings=warnings,
             forecast_basis=basis,
             decision_at=decision_at,
+            daily_energy_range=daily_energy_ratio_range(
+                analysis.matched,
+                self._accuracy.business_tz,
+                analysis.alignment.forecast_resolution_minutes,
+                self._settings.min_days_for_daily_energy_range,
+            ),
         )

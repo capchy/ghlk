@@ -9,7 +9,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.core.timeutils import AnalysisWindow
-from app.services.accuracy_service import Coverage, ErrorRange, LevelErrorRanges, Metrics, PeriodMetrics
+from app.services.accuracy_service import (
+    Coverage,
+    DailyEnergyRatioRange,
+    ErrorRange,
+    LevelErrorRanges,
+    Metrics,
+    PeriodMetrics,
+)
 from app.services.temporal_alignment_service import AlignmentInfo
 
 SOURCE = "Elexon Insights API (https://data.elexon.co.uk/bmrs/api/v1)"
@@ -112,6 +119,21 @@ class ErrorRangeOut(BaseModel):
 
     @classmethod
     def of(cls, r: ErrorRange) -> ErrorRangeOut:
+        return cls(**asdict(r))
+
+
+class DailyEnergyRatioRangeOut(BaseModel):
+    label: str = "Empirical historical range of whole-day actual / forecast energy (not a guaranteed confidence interval)"
+    available: bool
+    day_count: int = Field(description="Complete delivery days (every period matched, forecast > 0) used")
+    min_days: int
+    p10_ratio: float | None = Field(description="P10 of actual / forecast day energy")
+    p50_ratio: float | None
+    p90_ratio: float | None = Field(description="P90 of actual / forecast day energy")
+    explanation: str
+
+    @classmethod
+    def of(cls, r: DailyEnergyRatioRange) -> DailyEnergyRatioRangeOut:
         return cls(**asdict(r))
 
 

@@ -100,6 +100,7 @@ class DefaultWindowStatusOut(BaseModel):
     actual_periods_available: int
     expected_actual_periods: int
     decision_cutoff_configured: bool
+    decision_cutoff_time: str | None = Field(default=None, description="Server DECISION_CUTOFF_TIME, HH:MM")
     ready: bool
 
 
@@ -141,6 +142,7 @@ class DataStatusOut(BaseModel):
                 actual_periods_available=s.default_window_actual_periods,
                 expected_actual_periods=s.default_window_expected_periods,
                 decision_cutoff_configured=s.decision_cutoff_configured,
+                decision_cutoff_time=s.decision_cutoff_time.strftime("%H:%M") if s.decision_cutoff_time else None,
                 ready=s.ready_for_default_analysis,
             ),
             warnings=s.warnings,

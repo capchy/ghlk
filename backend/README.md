@@ -64,7 +64,7 @@ backend/
 │       ├── forecast_service.py            upcoming forecast + evolution
 │       ├── dashboard_service.py           combines forecast + accuracy
 │       └── status_service.py              data coverage report
-├── tests/                                 91 tests, offline (mocked Elexon)
+├── tests/                                 98 tests, offline (mocked Elexon)
 ├── Dockerfile, docker-compose.yml, .env.example, requirements*.txt
 ```
 
@@ -258,6 +258,33 @@ Example from 31 October 2026, day-ahead forecasts at a 09:00 cutoff:
 For the 3,200 MW forecast at 00:00 on 1 November, the overall range is 0–3,173 MW, with the lower
 bound clipped at zero. The level-based range is 819–3,122 MW.
 
+### Day-total range
+
+Buyers think in energy for the whole day, so the dashboard also gives the delivery day's forecast
+total with a range (`forecast_day_energy`):
+
+1. Matched hours are grouped by Europe/London delivery date. Only **complete** days count (every
+   hour matched; 23 or 25 hours on clock-change days). Partial days at the window edges or with
+   missing data are dropped, as are days with a zero forecast.
+2. For each day: forecast and actual energy in MWh (sum of MW × period length), and the ratio
+   `actual ÷ forecast`. P10/P50/P90 of the ratios are returned as
+   `historical_accuracy.daily_energy_ratio_range`.
+3. The range for the delivery day is `total × P10` to `total × P90`, with the number of days used.
+
+**Why ratios, not MWh differences.** Daily misses grow with the size of the day: in October 2026
+calm days (~100 GWh forecast) missed by ~30 GWh and windy days (~450 GWh) by 100–180 GWh
+(correlation 0.78). Applying MWh percentiles from all days to a calm day gave nonsense such as
+"0–111 GWh". The ratio stays comparable: on 80% of days actual energy was 65–98% of the forecast,
+for calm and windy days alike, so a calm 127 GWh day now gets 82–124 GWh.
+
+Hourly P10/P90 values are **not** summed: errors in neighbouring hours move together, so a sum
+would give the wrong width. A month only has ~30 days, so this range has its own minimum,
+`MIN_DAYS_FOR_DAILY_ENERGY_RANGE` (default 20). Below that, or when the delivery day's forecast is
+incomplete, the range is `null` with an `explanation`. With ~30 samples it is indicative only.
+
+January 2026 at a 09:00 cutoff: 31 complete days. For 15 January (forecast 279 GWh) the range is
+212–280 GWh.
+
 ## 12. API endpoints
 
 Interactive docs are at `/docs`. All timestamps are ISO 8601 UTC (`Z`).
@@ -267,7 +294,7 @@ Interactive docs are at `/docs`. All timestamps are ISO 8601 UTC (`Z`).
 | `GET /health` | `{"status":"healthy"}` |
 | `POST /api/v1/data/ingest` | Fetch and store data. Optional JSON body: `start_date`, `end_date`, `datasets` (`["FUELHH","WINDFOR"]`). With no dates it covers the rolling window plus the lookback. Idempotent. Returns `status`, `records_fetched/inserted/updated/skipped/invalid`, per-dataset detail, `errors` and `warnings`. Returns 502 if every dataset failed. |
 | `GET /api/v1/data/status` | Coverage of stored actuals and forecasts, latest publication and period, missing periods by date, alignment status, readiness for the default window, warnings |
-| `GET /api/v1/dashboard` | Forecast for `delivery_date` (default tomorrow) with overall and level-based estimated ranges, plus overall metrics, error ranges (overall and by level), 4 weekly buckets, coverage and warnings. Parameters: `delivery_date`, `as_of`, `window_days`, `start_date`, `end_date`, `decision_cutoff`. With `as_of`, the rolling window also ends at `as_of`. Without `as_of`, once the delivery date's decision cutoff has passed, the forecast is taken as published by the cutoff (`forecast_basis: "decision_cutoff"`, `decision_at`); before that, the live latest forecast is used (`"latest"`). |
+| `GET /api/v1/dashboard` | Forecast for `delivery_date` (default tomorrow) with overall and level-based estimated ranges and a day-total range (`forecast_day_energy`, from past actual ÷ forecast day-energy ratios), plus overall metrics, error ranges (overall and by level), 4 weekly buckets, coverage and warnings. Parameters: `delivery_date`, `as_of`, `window_days`, `start_date`, `end_date`, `decision_cutoff`. With `as_of`, the rolling window also ends at `as_of`. Without `as_of`, once the delivery date's decision cutoff has passed, the forecast is taken as published by the cutoff (`forecast_basis: "decision_cutoff"`, `decision_at`); before that, the live latest forecast is used (`"latest"`). |
 | `GET /api/v1/forecasts` | Latest eligible forecast per period for `delivery_date` (default tomorrow); optional `as_of`. Each item has `start_time`, `publish_time`, `generation_mw`; the response lists `selected_publish_times`, completeness and a warning when nothing is found. |
 | `GET /api/v1/forecasts/evolution` | Every stored publication for `target_start_time`, sorted by `publish_time` (Graph 5) |
 | `GET /api/v1/accuracy/summary` | Metrics, P10/P50/P90 overall and by forecast level, coverage, unmatched counts, alignment, window. `granularity=overall\|weekly\|daily` (default `weekly`); Graph 3 |
@@ -391,7 +418,7 @@ cd backend && pytest                               # locally
 docker compose --profile test run --rm tests       # in Docker
 ```
 
-There are 91 tests, all offline. A synthetic Elexon served through `httpx.MockTransport` encodes the
+There are 98 tests, all offline. A synthetic Elexon served through `httpx.MockTransport` encodes the
 lead time in each forecast value, so the tests can tell which publication was selected.
 
 | File | Covers |

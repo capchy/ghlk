@@ -43,6 +43,7 @@ export default function App() {
 
   const status = useApi<DataStatus>('/api/v1/data/status', {}, refreshKey)
   const serverCutoff = status.data?.default_window.decision_cutoff_configured ?? false
+  const serverCutoffTime = status.data?.default_window.decision_cutoff_time ?? null
   const cutoffKnown = Boolean(filters.decision_cutoff) || serverCutoff
   const hasData = (status.data?.actual.record_count ?? 0) > 0
 
@@ -111,6 +112,8 @@ export default function App() {
 
   const upcoming = forecast ? upcomingRows(forecast) : []
   const stats = forecast?.available ? forecastStats(forecast) : null
+  const dayEnergy = dashboard.data?.forecast_day_energy ?? null
+  const dayRange = dayEnergy?.estimated_actual_range ?? null
   const basis = dashboard.data?.forecast_basis
   const decisionAt = dashboard.data?.decision_at
   const forecastSubtitle = !forecast?.latest_publish_time
@@ -128,7 +131,7 @@ export default function App() {
       </a>
       <Header status={status.data} onIngest={ingest} ingesting={ingesting} />
       <main id="main" className="layout" tabIndex={-1}>
-        <Controls filters={filters} onChange={setFilters} serverCutoff={serverCutoff} />
+        <Controls filters={filters} onChange={setFilters} serverCutoff={serverCutoff} serverCutoffTime={serverCutoffTime} />
         <Warnings warnings={warnings} />
 
         {/* Purpose 1: the forecast available when the purchase decision is made. */}
@@ -145,7 +148,7 @@ export default function App() {
           }}
           summary={
             stats
-              ? 'The shaded band is the empirical P10–P90 range of past day-ahead errors for forecasts at a similar level: where actual generation has typically landed. It is illustrative, not a guarantee or a purchase recommendation.'
+              ? 'The shaded band is the empirical P10–P90 range of past day-ahead errors for forecasts at a similar level: where actual generation has typically landed. The bracketed day energy range is the forecast total scaled by how actual day energy compared with the forecast on past days. Both are illustrative, not a guarantee or a purchase recommendation.'
               : undefined
           }
           height={380}
@@ -184,8 +187,20 @@ export default function App() {
               <div>
                 <dt>Day energy</dt>
                 <dd>
-                  {fmtNum(stats.energyMwh / 1000)} GWh
-                  {!forecast.complete && <span className="muted"> (partial day)</span>}
+                  {fmtNum((dayEnergy?.forecast_mwh ?? stats.energyMwh) / 1000)} GWh
+                  {dayRange && (
+                    <span className="stat-strip__range">
+                      {' '}
+                      ({fmtNum(dayRange.lower_mwh / 1000)}–{fmtNum(dayRange.upper_mwh / 1000)} GWh)
+                    </span>
+                  )}
+                  <span className="stat-strip__sub">
+                    {dayRange
+                      ? `Likely actual, from ${dayRange.day_count} past days`
+                      : !forecast.complete
+                        ? 'Partial day: no likely range'
+                        : (dayEnergy?.explanation ?? 'Needs data and a cutoff')}
+                  </span>
                 </dd>
               </div>
             </dl>

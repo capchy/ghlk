@@ -10,6 +10,8 @@ from app.services.accuracy_service import (
     AccuracyService,
     bucket_metrics,
     compute_metrics,
+    daily_energy_ratio_range,
+    daily_energy_errors,
     daily_metrics,
     error_histogram,
     error_range,
@@ -45,6 +47,54 @@ def test_hand_calculated_metrics() -> None:
     assert m.bias_mw == pytest.approx(10 / 3, abs=1e-3)
     assert m.rmse_mw == pytest.approx(math.sqrt((100 + 400 + 0) / 3), abs=1e-3)
     assert m.wape_pct == pytest.approx(30 / 590 * 100, abs=1e-3)
+
+
+def test_daily_energy_errors_hand_calculated() -> None:
+    # Local midnight on 1 Oct 2026 (BST) is 30 Sep 23:00Z; two whole 24-hour days.
+    df = matched([100] * 24 + [200] * 24, [90] * 24 + [250] * 24, start=utc(2026, 9, 30, 23))
+    days = daily_energy_errors(df, LONDON, 60)
+    assert [str(d) for d in days["delivery_date"]] == ["2026-10-01", "2026-10-02"]
+    assert days["forecast_mwh"].tolist() == [2400, 4800]
+    assert days["error_mwh"].tolist() == [240, -1200]
+    # Half-hourly resolution halves the energy of each value.
+    half_hourly = matched([100] * 48, [100] * 48)
+    half_hourly["start_time"] = pd.date_range(utc(2026, 9, 30, 23), periods=48, freq="30min")
+    assert daily_energy_errors(half_hourly, LONDON, 30)["forecast_mwh"].tolist() == [2400]
+
+
+def test_daily_energy_drops_incomplete_days_and_counts_dst_day() -> None:
+    df = matched([100] * 48, [100] * 48, start=utc(2026, 9, 30, 23)).drop(index=30)
+    assert [str(d) for d in daily_energy_errors(df, LONDON, 60)["delivery_date"]] == ["2026-10-01"]
+    # 25 Oct 2026 has 25 local hours (clocks go back); local midnight is 24 Oct 23:00Z.
+    dst = daily_energy_errors(matched([10] * 25, [0] * 25, start=utc(2026, 10, 24, 23)), LONDON, 60)
+    assert len(dst) == 1 and dst["forecast_mwh"].iloc[0] == 250
+    assert daily_energy_errors(matched([10] * 24, [0] * 24, start=utc(2026, 10, 24, 23)), LONDON, 60).empty
+
+
+def test_daily_energy_ratio_range_quantiles_and_minimum() -> None:
+    # Ten whole days with forecast 100 MW and actual 50, 55, ... 95 MW: ratios 0.50 .. 0.95.
+    forecast = [100.0] * 240
+    actual = [50.0 + 5 * d for d in range(10) for _ in range(24)]
+    df = matched(forecast, actual, start=utc(2026, 9, 30, 23))
+    rng = daily_energy_ratio_range(df, LONDON, 60, min_days=10)
+    assert rng.available and rng.day_count == 10
+    assert rng.p10_ratio == pytest.approx(0.545) and rng.p90_ratio == pytest.approx(0.905)
+    assert rng.p50_ratio == pytest.approx(0.725)
+    # The range scales with the day's forecast: calm and windy days keep the same proportions.
+    assert rng.actual_range_for(1000) == (pytest.approx(545), pytest.approx(905))
+    assert rng.actual_range_for(100) == (pytest.approx(54.5), pytest.approx(90.5))
+    assert "55%" in rng.explanation and "90%" in rng.explanation
+    short = daily_energy_ratio_range(df, LONDON, 60, min_days=11)
+    assert not short.available and short.p10_ratio is None and "10 complete" in short.explanation
+    assert short.actual_range_for(1000) is None
+    assert not daily_energy_ratio_range(matched([], []), LONDON, 60, min_days=1).available
+    assert not daily_energy_ratio_range(df, LONDON, None, min_days=1).available
+
+
+def test_daily_energy_ratio_skips_zero_forecast_days() -> None:
+    df = matched([0.0] * 24 + [100.0] * 24, [10.0] * 24 + [80.0] * 24, start=utc(2026, 9, 30, 23))
+    rng = daily_energy_ratio_range(df, LONDON, 60, min_days=1)
+    assert rng.day_count == 1 and rng.p10_ratio == pytest.approx(0.8)
 
 
 def test_zero_actuals_are_valid_and_wape_guarded() -> None:

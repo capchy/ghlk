@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     min_samples_for_error_range: int = Field(default=30, ge=1)
     # Number of forecast-level bands for level-conditioned error ranges.
     error_range_level_bands: int = Field(default=5, ge=2, le=20)
+    # Minimum complete delivery days before a day-total energy range is shown.
+    # Lower than the hourly minimum because a month only has ~30 days.
+    min_days_for_daily_energy_range: int = Field(default=20, ge=1)
     default_histogram_bins: int = Field(default=20, ge=2, le=200)
 
     @field_validator("decision_cutoff_time", mode="before")

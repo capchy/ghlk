@@ -9,6 +9,7 @@ from app.schemas.common import (
     SOURCE,
     AlignmentOut,
     CoverageOut,
+    DailyEnergyRatioRangeOut,
     DecisionCutoffOut,
     ErrorRangeOut,
     LevelErrorRangesOut,
@@ -17,7 +18,9 @@ from app.schemas.common import (
     WindowOut,
 )
 from app.schemas.forecast import ForecastOut
+from app.services.accuracy_service import DailyEnergyRatioRange
 from app.services.dashboard_service import Dashboard
+from app.services.forecast_service import UpcomingForecast
 
 
 class HistoricalAccuracyOut(BaseModel):
@@ -29,6 +32,43 @@ class HistoricalAccuracyOut(BaseModel):
     error_range: ErrorRangeOut
     error_range_by_level: LevelErrorRangesOut | None
     weekly: list[PeriodMetricsOut]
+    daily_energy_ratio_range: DailyEnergyRatioRangeOut | None
+
+
+class EstimatedDayEnergyRange(BaseModel):
+    lower_mwh: float = Field(description="day forecast x P10(actual / forecast)")
+    upper_mwh: float = Field(description="day forecast x P90(actual / forecast)")
+    day_count: int = Field(description="Complete historical delivery days the range comes from")
+
+
+class ForecastDayEnergyOut(BaseModel):
+    forecast_mwh: float = Field(description="Sum of the day's forecast values x period length")
+    complete: bool = Field(description="False when some periods of the day have no forecast yet")
+    estimated_actual_range: EstimatedDayEnergyRange | None = Field(
+        description="Null when the day is incomplete or too few complete historical days exist"
+    )
+    explanation: str | None = Field(description="Why the range is missing, when it is")
+
+    @classmethod
+    def of(cls, f: UpcomingForecast, daily: DailyEnergyRatioRange | None) -> ForecastDayEnergyOut | None:
+        if not f.available or not f.resolution_minutes:
+            return None
+        total = round(float(f.items["forecast_mw"].sum()) * f.resolution_minutes / 60, 3)
+        rng = daily.actual_range_for(total) if daily and f.complete else None
+        if rng:
+            explanation = None
+        elif not f.complete:
+            explanation = "The day's forecast is incomplete, so it is not compared with whole-day errors."
+        else:
+            explanation = daily.explanation if daily else "Historical accuracy needs a decision cutoff."
+        return cls(
+            forecast_mwh=total,
+            complete=f.complete,
+            estimated_actual_range=EstimatedDayEnergyRange(lower_mwh=rng[0], upper_mwh=rng[1], day_count=daily.day_count)
+            if rng and daily
+            else None,
+            explanation=explanation,
+        )
 
 
 class DashboardOut(BaseModel):
@@ -43,6 +83,9 @@ class DashboardOut(BaseModel):
         "latest: cutoff not yet reached (or not configured); as_of: caller-supplied as_of"
     )
     decision_at: datetime | None = Field(description="Decision cutoff instant for the delivery date (UTC)")
+    forecast_day_energy: ForecastDayEnergyOut | None = Field(
+        description="Delivery-day forecast total with an empirical range from past whole-day errors"
+    )
     historical_accuracy: HistoricalAccuracyOut | None = Field(description="Null when no decision cutoff is configured")
     warnings: list[str]
 
@@ -60,10 +103,14 @@ class DashboardOut(BaseModel):
                 error_range=ErrorRangeOut.of(d.error_range),
                 error_range_by_level=LevelErrorRangesOut.of(d.level_ranges) if d.level_ranges else None,
                 weekly=[PeriodMetricsOut.of(p) for p in d.weekly],
+                daily_energy_ratio_range=DailyEnergyRatioRangeOut.of(d.daily_energy_range)
+                if d.daily_energy_range
+                else None,
             )
         return cls(
             forecast=ForecastOut.of(d.forecast, d.error_range, d.level_ranges) if d.forecast else None,
             historical_accuracy=hist,
+            forecast_day_energy=ForecastDayEnergyOut.of(d.forecast, d.daily_energy_range) if d.forecast else None,
             forecast_basis=d.forecast_basis,
             decision_at=d.decision_at,
             warnings=d.warnings,

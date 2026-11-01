@@ -39,7 +39,7 @@ The page shows only what the brief's two purposes need.
 
 | Section | Endpoint | Notes |
 |---|---|---|
-| Wind forecast for the delivery day | `GET /api/v1/dashboard` | Hourly forecast (dashed) with the likely actual range (P10–P90 of past errors at a similar forecast level), plus day totals: average, lowest, peak, day energy. Once the D-1 cutoff has passed, it shows the forecast **as published by the cutoff**, not later revisions the buyer couldn't have used (`forecast_basis`) |
+| Wind forecast for the delivery day | `GET /api/v1/dashboard` | Hourly forecast (dashed) with the likely actual range (P10–P90 of past errors at a similar forecast level), plus day totals: average, lowest, peak, and day energy with its likely range in brackets, e.g. `279 GWh (212–280 GWh)`: the day's forecast total scaled by how actual day energy compared with the forecast on past days (backend README section 11). Once the D-1 cutoff has passed, it shows the forecast **as published by the cutoff**, not later revisions the buyer couldn't have used (`forecast_basis`) |
 
 **2. Quantified forecast error**
 
@@ -76,10 +76,12 @@ Filters live in the URL (`delivery_date`, `decision_cutoff`, `period`, `window_d
 
 ## Design
 
-The design follows the **UI UX Pro Max** skill (`../.claude/skills/ui-ux-pro-max`). Its generated
-design system is saved at `../design-system/wind-forecast-accuracy/MASTER.md`:
+The layout and accessibility rules come from the **UI UX Pro Max** skill (`../.claude/skills/ui-ux-pro-max`;
+original output in `../design-system/wind-forecast-accuracy/MASTER.md`). The visual style was then
+matched to the **REint AI** website:
 
-- **Style:** Data-Dense Dashboard. Blue data, amber highlights, Fira Code headings and numbers, Fira Sans body, dense 8–32px spacing.
+- **Style:** brand green (`#1e8a3c`) for actions and the active state, charcoal text, warm off-white panels, hairline borders, near-square corners, no shadows. Inter for all text and numbers (tabular figures). Small uppercase letter-spaced labels, and underlined tabs for the accuracy period.
+- **Charts:** charcoal dashed forecast line, green actuals, soft red likely-range band, as on the REint demand chart.
 - **Theme:** light only, from the tokens in `src/styles/tokens.css`. It stays light even when the OS is set to dark mode, and there is no theme toggle.
 - **Charts** (from the skill's chart guidance):
   - Forecast vs actual uses solid vs dashed lines, so series don't depend on colour.

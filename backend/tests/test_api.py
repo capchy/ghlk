@@ -80,6 +80,7 @@ def test_status_on_empty_database(client: TestClient) -> None:
     assert body["actual"]["record_count"] == 0 and body["forecast"]["record_count"] == 0
     assert body["alignment"]["status"] == "no_data"
     assert body["default_window"]["ready"] is False
+    assert body["default_window"]["decision_cutoff_time"] == "09:00"
     assert any("data/ingest" in w for w in body["warnings"])
 
 
@@ -209,6 +210,8 @@ def test_missing_decision_cutoff(client_without_cutoff: TestClient) -> None:
     assert client_without_cutoff.get("/api/v1/accuracy/summary", params={"decision_cutoff": "09:00"}).status_code == 200
     dashboard = client_without_cutoff.get("/api/v1/dashboard").json()
     assert dashboard["historical_accuracy"] is None
+    assert dashboard["forecast_day_energy"]["estimated_actual_range"] is None
+    assert "cutoff" in dashboard["forecast_day_energy"]["explanation"]
     assert any("decision cutoff" in w for w in dashboard["warnings"])
     assert dashboard["forecast"]["available"] is True
 
@@ -291,6 +294,16 @@ def test_dashboard(ingested: TestClient) -> None:
         assert level["band_forecast_min_mw"] is None or item["generation_mw"] >= level["band_forecast_min_mw"]
         assert level["band_forecast_max_mw"] is None or item["generation_mw"] < level["band_forecast_max_mw"]
     assert "procurement" in body["scope_note"]
+    daily = hist["daily_energy_ratio_range"]
+    assert daily["available"] and daily["day_count"] == 28
+    assert daily["p10_ratio"] <= daily["p50_ratio"] <= daily["p90_ratio"]
+    day = body["forecast_day_energy"]
+    items = body["forecast"]["items"]
+    assert day["complete"] and day["forecast_mwh"] == pytest.approx(sum(i["generation_mw"] for i in items))
+    rng = day["estimated_actual_range"]
+    assert rng["day_count"] == 28 and rng["lower_mwh"] <= rng["upper_mwh"]
+    assert rng["lower_mwh"] == pytest.approx(day["forecast_mwh"] * daily["p10_ratio"], abs=1e-2)
+    assert rng["upper_mwh"] == pytest.approx(day["forecast_mwh"] * daily["p90_ratio"], abs=1e-2)
 
 
 def test_dashboard_shows_forecast_available_at_decision_cutoff(ingested: TestClient) -> None:

@@ -16,7 +16,7 @@ because that needs demand data, which is out of scope.
 | `backend/` | Python 3.12, FastAPI, SQLAlchemy (SQLite locally, Postgres when hosted), pandas | [backend/README.md](backend/README.md) |
 | `frontend/` | React, TypeScript, Vite, Recharts | [frontend/README.md](frontend/README.md) |
 | `api/index.py`, `vercel.json` | Vercel deployment: FastAPI as a Python function | below |
-| `design-system/` | Design rules generated with the UI UX Pro Max skill | |
+| `design-system/` | Original design rules from the UI UX Pro Max skill; colours and type now follow the REint AI site (see frontend README) | |
 
 ## Run locally
 
@@ -112,7 +112,7 @@ Run these from the repository root. `npx vercel integration add neon` adds the d
 
 ### How the deployment was tested
 
-- The full backend suite (94 tests) passes on SQLite **and on a real Postgres** server
+- The full backend suite (98 tests) passes on SQLite **and on a real Postgres** server
   (`TEST_DATABASE_URL=postgresql://... pytest`).
 - `api/index.py` was served locally against Postgres: `/health` and `/api/v1/*` respond, and a live
   January 2026 fetch took 12.9 seconds with metrics matching SQLite.

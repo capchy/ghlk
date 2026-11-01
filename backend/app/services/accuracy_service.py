@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from app.core.config import Settings
-from app.core.timeutils import AnalysisWindow, seven_day_buckets
+from app.core.timeutils import AnalysisWindow, local_day_bounds, seven_day_buckets
 from app.db.repositories import ActualRepository, ForecastRepository
 from app.services import forecast_selection_service as selection
 from app.services.temporal_alignment_service import (
@@ -170,6 +170,100 @@ def level_error_ranges(matched: pd.DataFrame, target_bins: int, min_samples: int
         bands,
         f"Historical errors grouped into {len(bands)} forecast-level bands of roughly equal size; a new forecast "
         "uses the band its value falls in. Empirical and historical, not a guaranteed confidence interval.",
+    )
+
+
+@dataclass(frozen=True)
+class DailyEnergyRatioRange:
+    """Empirical range of whole-day ``actual / forecast`` energy ratios over complete delivery days.
+
+    Ratios, not MWh differences: daily misses grow with the size of the day
+    (windy days miss by far more GWh than calm ones), while the ratio stays
+    comparable across calm and windy days.
+    """
+
+    available: bool
+    day_count: int
+    min_days: int
+    p10_ratio: float | None
+    p50_ratio: float | None
+    p90_ratio: float | None
+    explanation: str
+
+    def actual_range_for(self, forecast_mwh: float) -> tuple[float, float] | None:
+        """``[E x P10, E x P90]`` for a day's forecast energy ``E``."""
+        if not self.available or self.p10_ratio is None or self.p90_ratio is None:
+            return None
+        return _r(forecast_mwh * self.p10_ratio), _r(forecast_mwh * self.p90_ratio)
+
+
+DAILY_ENERGY_COLUMNS = ["delivery_date", "forecast_mwh", "actual_mwh", "error_mwh", "ratio"]
+
+
+def daily_energy_errors(matched: pd.DataFrame, tz: ZoneInfo, resolution_minutes: int) -> pd.DataFrame:
+    """Forecast and actual energy per local delivery date, for days whose every period matched.
+
+    Partial days (window edges, missing data) are dropped: their totals are not
+    comparable with a whole day's forecast. DST days count with 23 or 25 hours.
+    """
+    if matched.empty:
+        return pd.DataFrame(columns=DAILY_ENERGY_COLUMNS)
+    hours = resolution_minutes / 60
+    period = timedelta(minutes=resolution_minutes)
+    local_date = pd.to_datetime(matched["start_time"], utc=True).dt.tz_convert(tz).dt.date
+    grouped = matched.groupby(local_date).agg(
+        periods=("forecast_mw", "size"), forecast=("forecast_mw", "sum"), actual=("actual_mw", "sum")
+    )
+    expected = []
+    for day in grouped.index:
+        start, end = local_day_bounds(day, tz)
+        expected.append(int((end - start) / period))
+    complete = grouped[grouped["periods"] == expected]
+    out = pd.DataFrame(
+        {
+            "delivery_date": complete.index,
+            "forecast_mwh": complete["forecast"].to_numpy(dtype=float) * hours,
+            "actual_mwh": complete["actual"].to_numpy(dtype=float) * hours,
+        }
+    )
+    out["error_mwh"] = out["forecast_mwh"] - out["actual_mwh"]
+    # Undefined for a zero-forecast day; such days are left out of the ratio range.
+    out["ratio"] = (out["actual_mwh"] / out["forecast_mwh"]).where(out["forecast_mwh"] > 0)
+    return out
+
+
+def daily_energy_ratio_range(
+    matched: pd.DataFrame, tz: ZoneInfo, resolution_minutes: int | None, min_days: int
+) -> DailyEnergyRatioRange:
+    """P10/P50/P90 of whole-day ``actual / forecast`` energy ratios.
+
+    Daily totals are compared directly instead of summing hourly percentiles,
+    which would misstate the width because neighbouring hours' errors are correlated.
+    """
+    days = daily_energy_errors(matched, tz, resolution_minutes) if resolution_minutes else pd.DataFrame()
+    ratios = days["ratio"].dropna().to_numpy(dtype=float) if len(days) else np.array([])
+    n = len(ratios)
+    if n < min_days:
+        return DailyEnergyRatioRange(
+            False,
+            n,
+            min_days,
+            None,
+            None,
+            None,
+            f"Only {n} complete delivery days matched; at least {min_days} are required for a day-total range.",
+        )
+    p10, p50, p90 = np.quantile(ratios, [0.1, 0.5, 0.9])
+    return DailyEnergyRatioRange(
+        True,
+        n,
+        min_days,
+        round(float(p10), 4),
+        round(float(p50), 4),
+        round(float(p90), 4),
+        f"On 80% of the last {n} complete delivery days, actual wind energy was between {p10:.0%} and "
+        f"{p90:.0%} of the day-ahead forecast. Empirical and historical; not a guarantee or procurement "
+        "recommendation.",
     )
 
 

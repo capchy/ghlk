@@ -10,8 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource/fira-code": "^5.2.6",
-    "@fontsource/fira-sans": "^5.2.5",
+    "@fontsource/inter": "^5.2.5",
     "@phosphor-icons/react": "^2.1.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

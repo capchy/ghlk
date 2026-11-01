@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.config import Settings
@@ -32,6 +32,7 @@ class DataStatus:
     default_window_actual_periods: int
     default_window_expected_periods: int
     decision_cutoff_configured: bool
+    decision_cutoff_time: time | None
     ready_for_default_analysis: bool
     warnings: list[str] = field(default_factory=list)
 
@@ -100,6 +101,7 @@ class StatusService:
             default_window_actual_periods=in_window,
             default_window_expected_periods=expected_in_window,
             decision_cutoff_configured=cutoff_ok,
+            decision_cutoff_time=self._settings.decision_cutoff_time,
             ready_for_default_analysis=ready,
             warnings=warnings,
         )

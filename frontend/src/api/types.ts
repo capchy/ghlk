@@ -51,12 +51,21 @@ export interface Forecast {
   warnings: string[]
 }
 
+export interface ForecastDayEnergy {
+  forecast_mwh: number
+  complete: boolean
+  /** Forecast total x P10..P90 of past whole-day actual/forecast ratios; null when unavailable. */
+  estimated_actual_range: { lower_mwh: number; upper_mwh: number; day_count: number } | null
+  explanation: string | null
+}
+
 export interface Dashboard {
   scope_note: string
   forecast: Forecast | null
   /** decision_cutoff: as published by the D-1 cutoff (passed); latest: cutoff still ahead or unknown. */
   forecast_basis: 'decision_cutoff' | 'latest' | 'as_of'
   decision_at: string | null
+  forecast_day_energy: ForecastDayEnergy | null
   historical_accuracy: {
     analysis_window: AnalysisWindow
     decision_cutoff: { time: string }
@@ -89,7 +98,7 @@ export interface Distribution {
 export interface DataStatus {
   actual: { record_count: number; latest_generation_period_end: string | null }
   forecast: { latest_publish_time: string | null }
-  default_window: { decision_cutoff_configured: boolean }
+  default_window: { decision_cutoff_configured: boolean; decision_cutoff_time: string | null }
   warnings: string[]
 }
 
